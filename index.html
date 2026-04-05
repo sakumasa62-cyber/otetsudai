@@ -14,7 +14,7 @@
 html, body { height: 100%; }
 body {
   font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic Pro', sans-serif;
-  background: var(--c-bg);
+  background: url('otetsudai/gallery-cinnamoroll7.jpg') center center / cover no-repeat fixed;
   color: var(--c-text);
   min-height: 100vh;
   overflow-x: hidden;
@@ -22,7 +22,7 @@ body {
 
 /* === CSS Variables === */
 :root {
-  --c-bg: #fff9f5;
+  --c-bg: rgba(255,249,245,0.82);
   --c-text: #3d3020;
   --c-muted: #9e8e7e;
   --c-border: #f0e4d4;
@@ -100,7 +100,7 @@ body[data-child="ayano"] {
 
 /* === Child Select Screen === */
 #screen-child-select {
-  background: url('otetsudai/gallery-cinnamoroll7.jpg') center center / cover no-repeat;
+  background: transparent;
   justify-content: center;
   align-items: center;
   padding: 24px 20px;
@@ -226,7 +226,7 @@ body[data-child="ayano"] {
 
 /* === Tab Panes === */
 .tab-pane { display: none; flex: 1; overflow-y: auto; padding-bottom: 80px; }
-.tab-pane.active { display: block; animation: fadeIn 0.25s ease; }
+.tab-pane.active { display: block; animation: fadeIn 0.25s ease; background: rgba(255,249,245,0.75); }
 
 /* === Cards === */
 .card {
