@@ -1770,43 +1770,45 @@ const App = {
   _activeTab: 'home',
   _pendingRewardId: null,
 
-  async init() {
+  init() {
     Storage.load();
-    // Auto-connect Firebase if config is saved
-    const cfg = FirebaseSync.loadConfig();
-    if (cfg) {
-      const ok = await FirebaseSync.init(cfg);
-      if (ok) {
-        // Initial load from Firebase (resolves cross-device differences)
-        try {
-          const snap = await FirebaseSync._ref.once('value');
-          const remoteData = snap.val();
-          if (remoteData) {
-            Storage._cache = remoteData;
-            Storage.save(remoteData);
-          } else {
-            // No data in Firebase yet — push local data up
-            FirebaseSync.push(Storage.getData());
-          }
-          FirebaseSync._status = 'connected';
-          FirebaseSync._updateIndicator();
-        } catch(e) {
-          FirebaseSync._status = 'error';
-          FirebaseSync._updateIndicator();
-        }
-        // Real-time listener for changes from other devices
-        FirebaseSync.listen(data => {
-          if (data) {
-            Storage._cache = data;
-            Storage.save(data);
-            Renderer.updateChildSelect();
-            this._refreshCurrentTab();
-          }
-        });
-      }
-    }
+    // Show UI immediately — never block on Firebase
     Renderer.updateChildSelect();
     this._showScreen('screen-child-select');
+    // Firebase init runs in background
+    const cfg = FirebaseSync.loadConfig();
+    if (cfg) this._initFirebase(cfg);
+  },
+
+  async _initFirebase(cfg) {
+    const ok = await FirebaseSync.init(cfg);
+    if (!ok) return;
+    try {
+      const snap = await FirebaseSync._ref.once('value');
+      const remoteData = snap.val();
+      if (remoteData) {
+        Storage._cache = remoteData;
+        Storage.save(remoteData);
+        Renderer.updateChildSelect();
+        this._refreshCurrentTab();
+      } else {
+        FirebaseSync.push(Storage.getData());
+      }
+      FirebaseSync._status = 'connected';
+      FirebaseSync._updateIndicator();
+    } catch(e) {
+      FirebaseSync._status = 'error';
+      FirebaseSync._updateIndicator();
+    }
+    // Real-time listener for changes from other devices
+    FirebaseSync.listen(data => {
+      if (data) {
+        Storage._cache = data;
+        Storage.save(data);
+        Renderer.updateChildSelect();
+        this._refreshCurrentTab();
+      }
+    });
   },
 
   _refreshCurrentTab() {
