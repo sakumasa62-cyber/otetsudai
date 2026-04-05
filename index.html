@@ -949,7 +949,7 @@ const FirebaseSync = {
       if (this._ignoreNextRemote) { this._ignoreNextRemote = false; return; }
       this._status = 'connected';
       this._updateIndicator();
-      onData(snap.val());
+      onData(normalizeFirebaseData(snap.val()));
     }, err => {
       console.error('Firebase listen error:', err);
       this._status = 'error';
@@ -1030,6 +1030,23 @@ const Storage = {
     };
   }
 };
+
+// ─── Firebase data normalizer ─────────────────────────────────
+// Firebase strips empty arrays and converts arrays to objects.
+// This restores the expected structure before storing locally.
+function normalizeFirebaseData(data) {
+  if (!data) return null;
+  const toArr = v => !v ? [] : Array.isArray(v) ? v : Object.values(v);
+  data.chores  = toArr(data.chores);
+  data.rewards = toArr(data.rewards);
+  if (!data.children) data.children = {};
+  ['yuuna','ayano'].forEach(c => {
+    if (!data.children[c]) data.children[c] = {};
+    data.children[c].records     = toArr(data.children[c].records);
+    data.children[c].redemptions = toArr(data.children[c].redemptions);
+  });
+  return data;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────
 function genId() {
@@ -1729,7 +1746,7 @@ const Settings = {
     // Push current local data to Firebase (first-time setup)
     try {
       const snap = await FirebaseSync._ref.once('value');
-      const remoteData = snap.val();
+      const remoteData = normalizeFirebaseData(snap.val());
       if (remoteData) {
         Storage._cache = remoteData;
         Storage.save(remoteData);
@@ -1785,7 +1802,7 @@ const App = {
     if (!ok) return;
     try {
       const snap = await FirebaseSync._ref.once('value');
-      const remoteData = snap.val();
+      const remoteData = normalizeFirebaseData(snap.val());
       if (remoteData) {
         Storage._cache = remoteData;
         Storage.save(remoteData);
