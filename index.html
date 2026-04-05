@@ -1191,15 +1191,19 @@ const Chart = {
     const chartH = H - padB - padT;
     const n = labels.length;
     const maxVal = Math.max(...earnedArr, ...spentArr, 1);
-    const topVal = Math.ceil(maxVal / 50) * 50 || 50;
+    // Pick a round step so grid labels are always clean integers
+    const steps = [1,2,5,10,20,50,100,200,500,1000];
+    const rawStep = maxVal / 4;
+    const step = steps.find(s => s >= rawStep) || 1000;
+    const topVal = step * 4;
 
     const allZero = earnedArr.every(v=>v===0) && spentArr.every(v=>v===0);
 
     let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" xmlns="http://www.w3.org/2000/svg">`;
 
-    // Grid lines
-    for (let i = 0; i <= 3; i++) {
-      const yv = topVal * i / 3;
+    // Grid lines (4 divisions, always integer labels)
+    for (let i = 0; i <= 4; i++) {
+      const yv = step * i;
       const y = padT + chartH - (yv / topVal) * chartH;
       svg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" stroke="#f0e4d4" stroke-width="1"/>`;
       svg += `<text x="${padL-4}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="9" fill="#9e8e7e" font-family="'M PLUS Rounded 1c',sans-serif">${yv}</text>`;
