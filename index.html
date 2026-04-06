@@ -332,6 +332,8 @@ body[data-child="ayano"] {
 .record-name { font-size: 14px; font-weight: 700; color: var(--c-text); }
 .record-date { font-size: 11px; color: var(--c-muted); margin-top: 2px; }
 .record-pts { font-size: 16px; font-weight: 800; color: var(--c-earn); }
+.record-del-btn { font-size: 14px; padding: 4px 8px; margin-left: 4px; opacity: 0.5; }
+.record-del-btn:hover { opacity: 1; }
 
 .empty-state {
   text-align: center;
@@ -1163,6 +1165,11 @@ const DataStore = {
     const recs = this.getRecords(childKey);
     return recs.slice().reverse().slice(0, n);
   },
+  deleteRecord(childKey, recordId) {
+    const d = Storage.getData();
+    d.children[childKey].records = d.children[childKey].records.filter(r => r.id !== recordId);
+    Storage.setData(d);
+  },
 
   getRedemptions(childKey) { return Storage.getData().children[childKey].redemptions; },
   addRedemption(childKey, rewardId) {
@@ -1317,13 +1324,14 @@ const Renderer = {
       el.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>まだきろくがないよ！<br>おてつだいをしたらきろくしよう！</p></div>`;
     } else {
       el.innerHTML = recs.map(r => `
-        <div class="record-item">
+        <div class="record-item" id="rec-item-${r.id}">
           <div class="record-emoji">${r.choreEmoji||'⭐'}</div>
           <div class="record-info">
             <div class="record-name">${escHtml(r.choreName)}</div>
             <div class="record-date">${DateUtils.formatDisplay(r.date)}</div>
           </div>
           <div class="record-pts">+${r.points}pt</div>
+          <button class="icon-btn record-del-btn" onclick="App.confirmDeleteRecord('${r.id}')" title="削除">🗑️</button>
         </div>`).join('');
     }
   },
@@ -1971,6 +1979,24 @@ const App = {
   closeModal(e) {
     document.getElementById('modal-backdrop').classList.add('hidden');
     document.body.style.overflow = '';
+  },
+
+  confirmDeleteRecord(recordId) {
+    const item = document.getElementById(`rec-item-${recordId}`);
+    const existing = document.getElementById(`del-rec-${recordId}`);
+    if (existing) { existing.remove(); return; }
+    const html = `<div class="delete-confirm" id="del-rec-${recordId}">
+      <span>このきろくを削除する？</span>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('del-rec-${recordId}').remove()">やめる</button>
+      <button class="btn btn-danger btn-sm" onclick="App.executeDeleteRecord('${recordId}')">削除</button>
+    </div>`;
+    item.insertAdjacentHTML('afterend', html);
+  },
+
+  executeDeleteRecord(recordId) {
+    DataStore.deleteRecord(this._activeChild, recordId);
+    Renderer.renderHome(this._activeChild);
+    Renderer.showToast('🗑️ きろくを削除したよ');
   },
 
   recordChore(choreId) {
