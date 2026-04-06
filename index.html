@@ -567,6 +567,7 @@ body[data-child="ayano"] {
   -webkit-tap-highlight-color: transparent;
 }
 .icon-btn:hover { background: #e0d4c4; }
+.icon-btn-placeholder { display: inline-block; width: 34px; }
 
 /* Delete confirm inline */
 .delete-confirm {
@@ -1113,6 +1114,14 @@ const DataStore = {
     d.chores = d.chores.filter(x => x.id !== id);
     Storage.setData(d);
   },
+  moveChore(id, direction) {
+    const d = Storage.getData();
+    const idx = d.chores.findIndex(c => c.id === id);
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (idx < 0 || newIdx < 0 || newIdx >= d.chores.length) return;
+    [d.chores[idx], d.chores[newIdx]] = [d.chores[newIdx], d.chores[idx]];
+    Storage.setData(d);
+  },
 
   getRewards() { return Storage.getData().rewards; },
   addReward(name, emoji, points) {
@@ -1129,6 +1138,14 @@ const DataStore = {
   deleteReward(id) {
     const d = Storage.getData();
     d.rewards = d.rewards.filter(x => x.id !== id);
+    Storage.setData(d);
+  },
+  moveReward(id, direction) {
+    const d = Storage.getData();
+    const idx = d.rewards.findIndex(r => r.id === id);
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (idx < 0 || newIdx < 0 || newIdx >= d.rewards.length) return;
+    [d.rewards[idx], d.rewards[newIdx]] = [d.rewards[newIdx], d.rewards[idx]];
     Storage.setData(d);
   },
 
@@ -1449,7 +1466,7 @@ const Renderer = {
       el.innerHTML = `<p style="color:var(--c-muted);font-size:13px">まだおてつだいがないよ</p>`;
       return;
     }
-    el.innerHTML = chores.map(c => `
+    el.innerHTML = chores.map((c, i) => `
       <div class="settings-item" id="chore-item-${c.id}">
         <div class="settings-item-emoji">${c.emoji}</div>
         <div class="settings-item-info">
@@ -1457,6 +1474,8 @@ const Renderer = {
           <div class="settings-item-pts">${c.points} pt</div>
         </div>
         <div class="settings-item-actions">
+          ${i > 0 ? `<button class="icon-btn" onclick="DataStore.moveChore('${c.id}','up');Renderer.renderChoreSettings();" title="上へ">↑</button>` : '<span class="icon-btn-placeholder"></span>'}
+          ${i < chores.length - 1 ? `<button class="icon-btn" onclick="DataStore.moveChore('${c.id}','down');Renderer.renderChoreSettings();" title="下へ">↓</button>` : '<span class="icon-btn-placeholder"></span>'}
           <button class="icon-btn" onclick="Settings.openEditChore('${c.id}')" title="編集">✏️</button>
           <button class="icon-btn" onclick="Settings.confirmDeleteChore('${c.id}')" title="削除">🗑️</button>
         </div>
@@ -1470,7 +1489,7 @@ const Renderer = {
       el.innerHTML = `<p style="color:var(--c-muted);font-size:13px">まだご褒美がないよ</p>`;
       return;
     }
-    el.innerHTML = rewards.map(r => `
+    el.innerHTML = rewards.map((r, i) => `
       <div class="settings-item" id="reward-item-${r.id}">
         <div class="settings-item-emoji">${r.emoji}</div>
         <div class="settings-item-info">
@@ -1478,6 +1497,8 @@ const Renderer = {
           <div class="settings-item-pts">${r.points} pt</div>
         </div>
         <div class="settings-item-actions">
+          ${i > 0 ? `<button class="icon-btn" onclick="DataStore.moveReward('${r.id}','up');Renderer.renderRewardSettings();" title="上へ">↑</button>` : '<span class="icon-btn-placeholder"></span>'}
+          ${i < rewards.length - 1 ? `<button class="icon-btn" onclick="DataStore.moveReward('${r.id}','down');Renderer.renderRewardSettings();" title="下へ">↓</button>` : '<span class="icon-btn-placeholder"></span>'}
           <button class="icon-btn" onclick="Settings.openEditReward('${r.id}')" title="編集">✏️</button>
           <button class="icon-btn" onclick="Settings.confirmDeleteReward('${r.id}')" title="削除">🗑️</button>
         </div>
@@ -1834,6 +1855,23 @@ const App = {
     } catch(e) {
       console.warn('Firebase init failed:', e);
     }
+    // Refresh from Firebase when returning from background (iOS Safari)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        const cfg = FirebaseSync.loadConfig();
+        if (cfg && FirebaseSync._ref) {
+          FirebaseSync._ref.once('value').then(snap => {
+            const data = normalizeFirebaseData(snap.val());
+            if (data) {
+              Storage._cache = data;
+              Storage.save(data);
+              Renderer.updateChildSelect();
+              App._refreshCurrentTab();
+            }
+          }).catch(() => {});
+        }
+      }
+    });
   },
 
   async _initFirebase(cfg) {
@@ -1868,12 +1906,15 @@ const App = {
   },
 
   _refreshCurrentTab() {
+    if (this._activeTab === 'settings') {
+      Renderer.renderSettings();
+      return;
+    }
     if (!this._activeChild) return;
     const tab = this._activeTab;
     if (tab === 'home') Renderer.renderHome(this._activeChild);
     else if (tab === 'rewards') Renderer.renderRewards(this._activeChild);
     else if (tab === 'stats') Renderer.renderStats(this._activeChild);
-    else if (tab === 'settings') Renderer.renderSettings();
     Renderer.updateTopBar(this._activeChild);
   },
 
