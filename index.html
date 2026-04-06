@@ -709,6 +709,8 @@ body[data-child="ayano"] {
 }
 #toast.hidden { display: none; }
 
+.hidden { display: none !important; }
+
 /* === Responsive === */
 @media (min-width: 480px) {
   .child-cards { flex-direction: row; max-width: 500px; }
@@ -763,7 +765,9 @@ body[data-child="ayano"] {
           <div class="balance-sub-item">かせいだ <span id="balance-earned">0</span>pt</div>
           <div class="balance-sub-item">つかった <span id="balance-spent">0</span>pt</div>
         </div>
+        <button onclick="App.openAdjust()" style="margin-top:10px;background:rgba(255,255,255,0.25);border:none;border-radius:20px;padding:6px 16px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;">✏️ ポイントを調整</button>
       </div>
+      <div id="adjust-form" class="hidden"></div>
 
       <div class="record-btn-wrap">
         <button class="btn btn-child btn-block" onclick="App.openModal()" style="font-size:16px;padding:16px;">
@@ -1048,6 +1052,7 @@ function normalizeFirebaseData(data) {
     if (!data.children[c]) data.children[c] = {};
     data.children[c].records     = toArr(data.children[c].records);
     data.children[c].redemptions = toArr(data.children[c].redemptions);
+    data.children[c].adjustments = toArr(data.children[c].adjustments);
   });
   return data;
 }
@@ -1161,8 +1166,22 @@ const DataStore = {
   getTotalSpent(childKey) {
     return this.getRedemptions(childKey).reduce((s, r) => s + r.points, 0);
   },
+  getAdjustments(childKey) {
+    return Storage.getData().children[childKey].adjustments || [];
+  },
+  addAdjustment(childKey, points, reason) {
+    const d = Storage.getData();
+    if (!d.children[childKey].adjustments) d.children[childKey].adjustments = [];
+    const adj = {id: genId(), points: parseInt(points), reason: reason || '', date: DateUtils.today()};
+    d.children[childKey].adjustments.push(adj);
+    Storage.setData(d);
+    return adj;
+  },
+  getTotalAdjustments(childKey) {
+    return this.getAdjustments(childKey).reduce((s, a) => s + a.points, 0);
+  },
   getBalance(childKey) {
-    return this.getTotalEarned(childKey) - this.getTotalSpent(childKey);
+    return this.getTotalEarned(childKey) - this.getTotalSpent(childKey) + this.getTotalAdjustments(childKey);
   },
   getMonthlyEarned(childKey, ym) {
     return this.getRecords(childKey).filter(r => DateUtils.getYearMonth(r.date) === ym).reduce((s,r)=>s+r.points,0);
@@ -1925,6 +1944,63 @@ const App = {
       el.offsetHeight; // reflow
       el.style.animation = 'pointBounce 0.4s ease';
     }
+  },
+
+  openAdjust() {
+    const el = document.getElementById('adjust-form');
+    if (!el.classList.contains('hidden')) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    el.classList.remove('hidden');
+    el.innerHTML = `<div class="inline-form" style="margin-bottom:12px">
+      <div class="inline-form-title">✏️ ポイントを調整する</div>
+      <p style="font-size:12px;color:var(--c-muted);margin-bottom:10px">プラスの数字で増やす、マイナスで減らすよ</p>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>ポイント（例: +50 や -30）</label>
+          <input class="form-input" id="adjust-pts-input" type="number" placeholder="例: 50 や -30">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>理由（任意）</label>
+          <input class="form-input" id="adjust-reason-input" type="text" maxlength="30" placeholder="例: がんばったので特別ボーナス">
+        </div>
+      </div>
+      <div class="form-error hidden" id="adjust-error"></div>
+      <div class="form-actions">
+        <button class="btn btn-ghost btn-sm" onclick="App.closeAdjust()">キャンセル</button>
+        <button class="btn btn-child btn-sm" onclick="App.saveAdjust()">💾 保存</button>
+      </div>
+    </div>`;
+    document.getElementById('adjust-pts-input').focus();
+  },
+
+  closeAdjust() {
+    const el = document.getElementById('adjust-form');
+    el.classList.add('hidden');
+    el.innerHTML = '';
+  },
+
+  saveAdjust() {
+    const pts = parseInt(document.getElementById('adjust-pts-input').value);
+    const reason = document.getElementById('adjust-reason-input').value.trim();
+    const errEl = document.getElementById('adjust-error');
+    if (!pts || pts === 0) {
+      errEl.textContent = 'ポイントを入力してね（0以外）';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const newBalance = DataStore.getBalance(this._activeChild) + pts;
+    if (newBalance < 0) {
+      errEl.textContent = `残高が足りないよ（現在 ${DataStore.getBalance(this._activeChild)}pt）`;
+      errEl.classList.remove('hidden');
+      return;
+    }
+    DataStore.addAdjustment(this._activeChild, pts, reason);
+    this.closeAdjust();
+    Renderer.renderHome(this._activeChild);
+    Renderer.updateTopBar(this._activeChild);
+    const sign = pts > 0 ? `＋${pts}` : `${pts}`;
+    Renderer.showToast(`✏️ ポイントを調整したよ！ ${sign}pt`);
   },
 
   confirmReward(rewardId) {
